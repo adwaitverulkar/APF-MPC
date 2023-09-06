@@ -11,7 +11,7 @@ addpath('..\casadi-3.6.3-windows64-matlab2018b\')
 
 import casadi.*
 
-T = 0.1; %[s]
+T = 0.1; %[
 N = 20; % prediction horizon
 rob_diam = 0.6;
 
