@@ -7,6 +7,7 @@ x_0 = [1,2];
 L = 10;
 k = 0.2;
 
+% Code for APF-MPC
 % Second Attractive potential based on linear + quadratic:
 K_att = 10;
 d_0 = 0.3;
