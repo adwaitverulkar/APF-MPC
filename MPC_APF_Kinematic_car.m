@@ -6,7 +6,8 @@ clc
 % CasADi v3.4.5
 % addpath('C:\Users\mehre\OneDrive\Desktop\CasADi\casadi-windows-matlabR2016a-v3.4.5')
 % CasADi v3.5.5
-addpath('..\casadi-3.6.3-windows64-matlab2018b\')
+% addpath('..\casadi-3.6.3-windows64-matlab2018b\')
+addpath('D:\Matlab\casadi-3.6.3-windows64-matlab2018b')
 % addpath('/home/anshulnayak/MPC/Matlab/Casadi/casadi-3.6.3-linux64-matlab2018b')
 
 import casadi.*
@@ -92,50 +93,52 @@ rx = [-3.3, -1.7
  rects =[rx ry];
  n_rects = size(rects,1);
  
- % Define the APF cost function for lane constraints:
-g_APF = SX.zeros(1,1);
-
-RX = SX.sym('RX',[n_rects,2]);
-RY = SX.sym('RY',[n_rects,2]);
-
+%  % Define the APF cost function for lane constraints:
+% g_APF = SX.zeros(1,1);
+% 
+% RX = SX.sym('RX',[n_rects,2]);
+% RY = SX.sym('RY',[n_rects,2]);
+% 
 nu = SX.sym('nu');
 nu_val = 1e5;
- 
-for i =1:n_rects
-%      rx1 =  RX(i,1);
-%      rx2 =  RX(i,2);
-%      ry1 =  RY(i,1);
-%      ry2 =  RY(i,2);
-     
-     g_APF = g_APF + nu * sum(exp( -((sqrt((max([RX(i,1)- x, 0,  x-RX(i,2)])).^2 + ...
-         (max([ RY(i,1)- y,  0,  y-RY(i,2)])).^2) + d_0)^2/(2*d_0^2))));
-end
+% 
+% for i =1:n_rects
+% %      rx1 =  RX(i,1);
+% %      rx2 =  RX(i,2);
+% %      ry1 =  RY(i,1);
+% %      ry2 =  RY(i,2);
+% 
+%      g_APF = g_APF + nu * sum(exp( -((sqrt((max([RX(i,1)- x, 0,  x-RX(i,2)])).^2 + ...
+%          (max([ RY(i,1)- y,  0,  y-RY(i,2)])).^2) + d_0)^2/(2*d_0^2))));
+% end
+% 
+% U_rect = Function('U_rect', {x,y,RX,RY,d_0,nu}, {g_APF});
 
-U_rect = Function('U_rect', {x,y,RX,RY,d_0,nu}, {g_APF});
+
  
 
 % For circular dynamic obstacles: 
-file_name = "Reactive_collision";
-obs_diam = 0.4;
-factor = SX.sym('factor',1);
-factor_val = 1.00;
-obs_x = SX.sym('obs_x', 1);
-obs_y = SX.sym('obs_y', 1);
-n_circs = size(obs_x,1);
-
-obs_loc_x = 2.0;
-obs_loc_y = -1.0;
+% file_name = "Reactive_collision";
+% obs_diam = 0.4;
+% factor = SX.sym('factor',1);
+% factor_val = 1.00;
+% obs_x = SX.sym('obs_x', 1);
+% obs_y = SX.sym('obs_y', 1);
+% n_circs = size(obs_x,1);
+% 
+% obs_loc_x = 2.0;
+% obs_loc_y = -1.0;
 
 % CX = SX.sym('CX',[n_circs,1]);
 % CY = SX.sym('CY',[n_circs,1]);
 
-for i = 1:n_circs
-        d = max([sqrt((x-obs_x).^2 +(y-obs_y).^2) - obs_diam*factor,0]);
-        g_APF =  nu* sum(exp( -((d + d_0)^2/(2*d_0^2))));
-end
- 
- U_circ = Function('U_circ', {x,y,obs_x,obs_y,d_0,nu,factor}, {g_APF});
- 
+% for i = 1:n_circs
+%         d = max([sqrt((x-obs_x).^2 +(y-obs_y).^2) - obs_diam*factor,0]);
+%         g_APF =  nu* sum(exp( -((d + d_0)^2/(2*d_0^2))));
+% end
+% 
+%  U_circ = Function('U_circ', {x,y,obs_x,obs_y,d_0,nu,factor}, {g_APF});
+% 
  
 % Define attractive APF for Goal location:
 g_goal = SX.zeros(1,1);
@@ -166,11 +169,12 @@ obs_loc = [2, 0];
 potential_field = zeros(nx,ny);
 obst_pot = zeros(nx,ny,N+1);
 
-potential_field = zeros(nx, ny);
+Lane_pot =  repulsive_pot_lane(A, B, rx, ry, d_0_val, nu_val);
+
 
 % Compute the values using vectorized operations
-potential_field = invertedGaussian(A, B, gaussian_amp, xs(1), xs(2), sigma_x, sigma_y, C) + ...
-                 invertedGaussian(A, B, 5*gaussian_amp, obs_loc(1), obs_loc(2), sigma_x, sigma_y, C);
+potential_field =  invertedGaussian(A, B, gaussian_amp, xs(1), xs(2), sigma_x, sigma_y, C) + ...
+                  invertedGaussian(A, B, 5*gaussian_amp, obs_loc(1), obs_loc(2), sigma_x, sigma_y, C);
 
 
 % for i = 1:nx
