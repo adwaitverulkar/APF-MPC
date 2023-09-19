@@ -149,7 +149,7 @@ X_goal = SX.sym('X_goal');
 Y_goal = SX.sym('Y_goal');
 
 % Parameters
-gaussian_amp = 2e4;
+gaussian_amp = 1e4;
 sigma_x = 0.3;
 sigma_y = 0.3;
 C = 0;
@@ -160,36 +160,28 @@ U_goal = Function('U_goal',{x,y,X_goal,Y_goal,L,k},{g_goal});
 a = linspace(-5,5,100); nx = length(a);
 b = linspace(-5,5,100); ny = length(b);
 
-obs_loc = [2, 0];
+
 [A,B] = meshgrid(a,b);
 
 potential_field = zeros(nx,ny);
 obst_pot = zeros(nx,ny,N+1);
 
-potential_field = zeros(nx, ny);
-
-% Compute the values using vectorized operations
-potential_field = invertedGaussian(A, B, gaussian_amp, xs(1), xs(2), sigma_x, sigma_y, C) + ...
-                 invertedGaussian(A, B, 5*gaussian_amp, obs_loc(1), obs_loc(2), sigma_x, sigma_y, C);
-
-
-% for i = 1:nx
-%     parfor j = 1:ny
-%          potential_field(i,j) =  full(U_rect(A(i,j),B(i,j), rx,ry,d_0_val,nu_val)) + ...
-%                                     full(U_goal(A(i,j),B(i,j),xs(1),xs(2),L_val,k_val)) - ...
-%                                     invertedGaussian(A(i,j),B(i,j), gaussian_amp, xs(1), xs(2), sigma_x, sigma_y, C) + ...
-%                                     invertedGaussian(A(i,j),B(i,j), 5*gaussian_amp, obs_loc(1), obs_loc(2), sigma_x, sigma_y, C);
-%     end
-% end
+for i = 1:nx
+    parfor j = 1:ny
+         potential_field(i,j) =  0*full(U_rect(A(i,j),B(i,j), rx,ry,d_0_val,nu_val)) + ...
+                                    full(U_goal(A(i,j),B(i,j),xs(1),xs(2),L_val,k_val)) - ...
+                                    invertedGaussian(A(i,j),B(i,j), gaussian_amp, xs(1), xs(2), sigma_x, sigma_y, C);
+    end
+end
 
 figure = gcf;
 shading interp
 surf(A,B,potential_field)
 
 % Create the contour plot
-contourf(A, B, potential_field, 200, 'edgecolor', 'none');
+contourf(A, B, potential_field, 100, 'edgecolor', 'none');
 
-colormap(hot)
+col
 % Optionally, save the plot as an image
 % saveas(gcf, 'contour_plot.png');
 
@@ -219,9 +211,7 @@ for k = 1:N
     st = X(:,k);  con = U(:,k);
     U_rect_pot = full(U_rect(X(1,k),X(2,k), rx,ry,d_0_val,nu_val));
     % U_circ_pot = full(U_circ(X(1,k),X(2,k), cx,cy,d_0_val,nu_val));
-    U_goal_pot = full(U_goal(X(1,k),X(2,k),xs(1),xs(2),L_val,k_val)) - ...
-                 invertedGaussian(X(1,k),X(2,k), gaussian_amp, xs(1), xs(2), sigma_x, sigma_y, C) + ...
-                 invertedGaussian(X(1,k),X(2,k), 5*gaussian_amp, obs_loc(1), obs_loc(2), sigma_x, sigma_y, C);
+    U_goal_pot = full(U_goal(X(1,k),X(2,k),xs(1),xs(2),L_val,k_val));
     U_tot = U_rect_pot + U_goal_pot;
 
     if k < N
@@ -316,7 +306,7 @@ opts = struct;
 opts.ipopt.max_iter = 100;
 opts.ipopt.print_level =0; %0,3
 opts.print_time = 0;
-opts.ipopt.linear_solver = 'spral';
+opts.ipopt.linear_solver = 'pardisomkl';
 opts.ipopt.acceptable_tol =1e-8;
 opts.ipopt.acceptable_obj_change_tol = 1e-6;
 
