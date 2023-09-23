@@ -21,14 +21,11 @@ function g_APF = repulsive_pot_lane(x, y, RX, RY, d_0, nu)
         dx = max(max(dx1, zeros(size(x))), dx2);
         dy = max(max(dy1, zeros(size(y))), dy2);
 
-        % disp(size(dx))
-
         % Calculate the APF term for the current rectangle
-        % dx = max(rx1 - x, zeros(size(x)), x - rx2);
-        % dy = max(ry1 - y, zeros(size(y)), y - ry2);
-        g_APF = g_APF + nu * (exp(-((sqrt((dx^2) + (dy^2)) + d_0).^2) / (2 * d_0^2)));
-        
-        % disp(size(g_APF))
+        dx = max(rx1 - x, zeros(size(x)), x - rx2);
+        dy = max(ry1 - y, zeros(size(y)), y - ry2);
+        g_APF = g_APF + nu * sum(exp(-((sqrt((dx.^2) + (dy.^2)) + d_0)^2) / (2 * d_0^2)));
+
         % g_APF = g_APF + nu * sum(exp( -((sqrt((max([RX(i,1)- x, 0,  x-RX(i,2)])).^2 + ...
         %      (max([ RY(i,1)- y,  0,  y-RY(i,2)])).^2) + d_0)^2/(2*d_0^2))));
         % 

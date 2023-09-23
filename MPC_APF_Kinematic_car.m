@@ -12,6 +12,7 @@ addpath('D:\Matlab\casadi-3.6.3-windows64-matlab2018b')
 
 import casadi.*
 
+tic;
 T = 0.1; %[
 N = 20; % prediction horizon
 rob_diam = 0.6;
@@ -119,15 +120,15 @@ nu_val = 1e5;
 
 % For circular dynamic obstacles: 
 % file_name = "Reactive_collision";
-% obs_diam = 0.4;
-% factor = SX.sym('factor',1);
-% factor_val = 1.00;
+obs_diam = 0.4;
+factor = SX.sym('factor',1);
+factor_val = 1.00;
 % obs_x = SX.sym('obs_x', 1);
 % obs_y = SX.sym('obs_y', 1);
 % n_circs = size(obs_x,1);
 % 
-% obs_loc_x = 2.0;
-% obs_loc_y = -1.0;
+obs_loc_x = 2.0;
+obs_loc_y = -1.0;
 
 % CX = SX.sym('CX',[n_circs,1]);
 % CY = SX.sym('CY',[n_circs,1]);
@@ -143,7 +144,7 @@ nu_val = 1e5;
 % Define attractive APF for Goal location:
 g_goal = SX.zeros(1,1);
 L = SX.sym('L');
-L_val = 3e5;
+L_val = 1e5;
 
 k = SX.sym('k');
 k_val = 0.2;
@@ -152,7 +153,7 @@ X_goal = SX.sym('X_goal');
 Y_goal = SX.sym('Y_goal');
 
 % Parameters
-gaussian_amp = 2e4;
+gaussian_amp = 1e5;
 sigma_x = 0.3;
 sigma_y = 0.3;
 C = 0;
@@ -163,18 +164,19 @@ U_goal = Function('U_goal',{x,y,X_goal,Y_goal,L,k},{g_goal});
 a = linspace(-5,5,100); nx = length(a);
 b = linspace(-5,5,100); ny = length(b);
 
-obs_loc = [2, 0];
+obs_loc = [obs_loc_x, obs_loc_y]; % Needs to be changed every MPC
 [A,B] = meshgrid(a,b);
+
 
 potential_field = zeros(nx,ny);
 obst_pot = zeros(nx,ny,N+1);
 
-Lane_pot =  repulsive_pot_lane(A, B, rx, ry, d_0_val, nu_val);
-
 
 % Compute the values using vectorized operations
-potential_field =  invertedGaussian(A, B, gaussian_amp, xs(1), xs(2), sigma_x, sigma_y, C) + ...
-                  invertedGaussian(A, B, 5*gaussian_amp, obs_loc(1), obs_loc(2), sigma_x, sigma_y, C);
+potential_field = 1*U_attractive_pot(A, B, xs(1),xs(2),L_val,k_val) +...
+                  1* repulsive_pot_lane(A, B, rx, ry, d_0_val, nu_val)- ...
+                  1*invertedGaussian(A, B, gaussian_amp, xs(1), xs(2), sigma_x, sigma_y, C) + ...
+                  1*invertedGaussian(A, B, gaussian_amp, obs_loc(1), obs_loc(2), sigma_x, sigma_y, C);
 
 
 % for i = 1:nx
@@ -185,6 +187,7 @@ potential_field =  invertedGaussian(A, B, gaussian_amp, xs(1), xs(2), sigma_x, s
 %                                     invertedGaussian(A(i,j),B(i,j), 5*gaussian_amp, obs_loc(1), obs_loc(2), sigma_x, sigma_y, C);
 %     end
 % end
+
 
 figure = gcf;
 shading interp
@@ -200,6 +203,8 @@ colormap(hot)
 % Show the plot
 axis equal;
 
+img_time = toc;
+fprintf("Time consumed in map generation: %f secs \n", img_time)
 
 fprintf("done")
 %% non 
@@ -221,11 +226,11 @@ st  = X(:,1); % initial state
 g = [g; st-P(1:n_states)]; % initial condition constraints
 for k = 1:N
     st = X(:,k);  con = U(:,k);
-    U_rect_pot = full(U_rect(X(1,k),X(2,k), rx,ry,d_0_val,nu_val));
+    U_rect_pot = full(repulsive_pot_lane(X(1,k),X(2,k), rx,ry,d_0_val,nu_val));
     % U_circ_pot = full(U_circ(X(1,k),X(2,k), cx,cy,d_0_val,nu_val));
-    U_goal_pot = full(U_goal(X(1,k),X(2,k),xs(1),xs(2),L_val,k_val)) - ...
+    U_goal_pot = full(U_attractive_pot(X(1,k),X(2,k),xs(1),xs(2),L_val,k_val)) - ...
                  invertedGaussian(X(1,k),X(2,k), gaussian_amp, xs(1), xs(2), sigma_x, sigma_y, C) + ...
-                 invertedGaussian(X(1,k),X(2,k), 5*gaussian_amp, obs_loc(1), obs_loc(2), sigma_x, sigma_y, C);
+                 invertedGaussian(X(1,k),X(2,k), gaussian_amp, obs_loc(1), obs_loc(2), sigma_x, sigma_y, C);
     U_tot = U_rect_pot + U_goal_pot;
 
     if k < N
@@ -233,11 +238,11 @@ for k = 1:N
     end
 %     U_pot = Potential_field(st);
     if k ~=N
-        U_obs = full(U_circ(X(1,k),X(2,k), P(2*n_states+n_obs*k-1),P(2*n_states+n_obs*k),d_0_val,nu_val,factor_val^k));
+        U_obs = full(invertedGaussian(X(1,k),X(2,k), P(2*n_states+n_obs*k-1),P(2*n_states+n_obs*k),d_0_val,nu_val,factor_val^k));
         obj = obj+(st-P(n_states+1:2*n_states))'*Q*(st-P(n_states+1:2*n_states)) ...
         + con'*R*con + (con_next-con)'*S*(con_next-con) + U_tot + U_obs; % calculate obj   
     else
-        U_obs = full(U_circ(X(1,k),X(2,k), P(2*n_states+n_obs*k-1),P(2*n_states+n_obs*k),d_0_val,nu_val,factor_val^k));
+        U_obs = full(invertedGaussian(X(1,k),X(2,k), P(2*n_states+n_obs*k-1),P(2*n_states+n_obs*k),d_0_val,nu_val,factor_val^k));
         obj = obj+(st-P(n_states+1:2*n_states))'*Q_N*(st-P(n_states+1:2*n_states))...
         + con'*R*con + (con_next-con)'*S*(con_next-con) + U_tot + U_obs; % calculate obj
     end

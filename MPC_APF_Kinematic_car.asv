@@ -12,6 +12,7 @@ addpath('D:\Matlab\casadi-3.6.3-windows64-matlab2018b')
 
 import casadi.*
 
+tic;
 T = 0.1; %[
 N = 20; % prediction horizon
 rob_diam = 0.6;
@@ -143,7 +144,7 @@ nu_val = 1e5;
 % Define attractive APF for Goal location:
 g_goal = SX.zeros(1,1);
 L = SX.sym('L');
-L_val = 3e5;
+L_val = 1e5;
 
 k = SX.sym('k');
 k_val = 0.2;
@@ -152,7 +153,7 @@ X_goal = SX.sym('X_goal');
 Y_goal = SX.sym('Y_goal');
 
 % Parameters
-gaussian_amp = 2e4;
+gaussian_amp = 1e5;
 sigma_x = 0.3;
 sigma_y = 0.3;
 C = 0;
@@ -163,18 +164,19 @@ U_goal = Function('U_goal',{x,y,X_goal,Y_goal,L,k},{g_goal});
 a = linspace(-5,5,100); nx = length(a);
 b = linspace(-5,5,100); ny = length(b);
 
-obs_loc = [2, 0];
+obs_loc = [2, 0]; % Needs to be changed every MPC
 [A,B] = meshgrid(a,b);
+
 
 potential_field = zeros(nx,ny);
 obst_pot = zeros(nx,ny,N+1);
 
-Lane_pot =  repulsive_pot_lane(A, B, rx, ry, d_0_val, nu_val);
-
 
 % Compute the values using vectorized operations
-potential_field =  invertedGaussian(A, B, gaussian_amp, xs(1), xs(2), sigma_x, sigma_y, C) + ...
-                  invertedGaussian(A, B, 5*gaussian_amp, obs_loc(1), obs_loc(2), sigma_x, sigma_y, C);
+potential_field = 1*U_attractive_pot(A, B, xs(1),xs(2),L_val,k_val) +...
+                  1* repulsive_pot_lane(A, B, rx, ry, d_0_val, nu_val)- ...
+                  1*invertedGaussian(A, B, gaussian_amp, xs(1), xs(2), sigma_x, sigma_y, C) + ...
+                  1*invertedGaussian(A, B, gaussian_amp, obs_loc(1), obs_loc(2), sigma_x, sigma_y, C);
 
 
 % for i = 1:nx
@@ -191,7 +193,7 @@ shading interp
 surf(A,B,potential_field)
 
 % Create the contour plot
-contourf(A, B, potential_field, 200, 'edgecolor', 'none');
+contourf(A, B, potential_field, 20, 'edgecolor', 'none');
 
 colormap(hot)
 % Optionally, save the plot as an image
@@ -200,7 +202,8 @@ colormap(hot)
 % Show the plot
 axis equal;
 
-
+img_time = toc;
+fprintf("Time consumed in map generation: %f secs \n", img_time)
 fprintf("done")
 %% non 
     
