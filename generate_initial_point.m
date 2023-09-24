@@ -43,7 +43,7 @@ function pnt = generate_initial_point()
     random_x = min_x + (max_x - min_x) * rand();
     random_y = min_y + (max_y - min_y) * rand();
 
-    pnt = [random_x, random_y];
+    pnt = [random_x; random_y];
     
     % Display the generated random point and the chosen rectangle
     fprintf('Random point inside Rectangle %d: (%.2f, %.2f)\n', random_rectangle, random_x, random_y);
