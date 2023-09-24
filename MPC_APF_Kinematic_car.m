@@ -6,8 +6,8 @@ clc
 % CasADi v3.4.5
 % addpath('C:\Users\mehre\OneDrive\Desktop\CasADi\casadi-windows-matlabR2016a-v3.4.5')
 % CasADi v3.5.5
-% addpath('..\casadi-3.6.3-windows64-matlab2018b\')
-addpath('D:\Matlab\casadi-3.6.3-windows64-matlab2018b')
+addpath('..\casadi-3.6.3-windows64-matlab2018b\')
+% addpath('D:\Matlab\casadi-3.6.3-windows64-matlab2018b')
 % addpath('/home/anshulnayak/MPC/Matlab/Casadi/casadi-3.6.3-linux64-matlab2018b')
 
 import casadi.*
@@ -116,8 +116,6 @@ nu_val = 1e5;
 % U_rect = Function('U_rect', {x,y,RX,RY,d_0,nu}, {g_APF});
 
 
- 
-
 % For circular dynamic obstacles: 
 % file_name = "Reactive_collision";
 obs_diam = 0.4;
@@ -161,22 +159,6 @@ C = 0;
 g_goal =  L/(1+exp(-k* sqrt((x-X_goal).^2 + (y-Y_goal).^2)));
 U_goal = Function('U_goal',{x,y,X_goal,Y_goal,L,k},{g_goal});
 
-a = linspace(-5,5,100); nx = length(a);
-b = linspace(-5,5,100); ny = length(b);
-
-obs_loc = [obs_loc_x, obs_loc_y]; % Needs to be changed every MPC
-[A,B] = meshgrid(a,b);
-
-
-potential_field = zeros(nx,ny);
-obst_pot = zeros(nx,ny,N+1);
-
-
-% Compute the values using vectorized operations
-potential_field = 1*U_attractive_pot(A, B, xs(1),xs(2),L_val,k_val) +...
-                  1* repulsive_pot_lane(A, B, rx, ry, d_0_val, nu_val)- ...
-                  1*invertedGaussian(A, B, gaussian_amp, xs(1), xs(2), sigma_x, sigma_y, C) + ...
-                  1*invertedGaussian(A, B, gaussian_amp, obs_loc(1), obs_loc(2), sigma_x, sigma_y, C);
 
 
 % for i = 1:nx
@@ -187,21 +169,16 @@ potential_field = 1*U_attractive_pot(A, B, xs(1),xs(2),L_val,k_val) +...
 %                                     invertedGaussian(A(i,j),B(i,j), 5*gaussian_amp, obs_loc(1), obs_loc(2), sigma_x, sigma_y, C);
 %     end
 % end
-
-
-figure = gcf;
-shading interp
-surf(A,B,potential_field)
-
-% Create the contour plot
-contourf(A, B, potential_field, 200, 'edgecolor', 'none');
-
-colormap(hot)
-% Optionally, save the plot as an image
+init_point = generate_initial_point();
+goal_pos = [xs(1); xs(2)];
+obs_loc = generate_obs_point();
+generate_APF_image(init_point, goal_pos, obs_loc, sigma_x, sigma_y, gaussian_amp, L_val, k_val, rx, ry, d_0_val, nu_val)
+% 
 % saveas(gcf, 'contour_plot.png');
 
-% Show the plot
-axis equal;
+% Save the figure without the gray area using exportgraphics
+exportgraphics(gcf, 'contour_plot.png', 'Resolution', 300, 'ContentType', 'auto');
+
 
 img_time = toc;
 fprintf("Time consumed in map generation: %f secs \n", img_time)
@@ -215,12 +192,8 @@ Q_N = 1e-4* diag([5e8;5e8;8e6;2e8;2e8;1e-10;1e-10]); % Hint : Q_N (high)
 R = diag([1e1;1e1]);
 S = 1e0*diag([1e1;1e3]);
 
-
 % Q = zeros(7,7); Q(1,1) = 1;Q(2,2) = 5;Q(3,3) = 0.1; % weighing matrices (states)
 % R = zeros(2,2); R(1,1) = 0.5; R(2,2) = 0.05; % weighing matrices (controls)
-
-
-
 
 st  = X(:,1); % initial state
 g = [g; st-P(1:n_states)]; % initial condition constraints
