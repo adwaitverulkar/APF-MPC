@@ -69,7 +69,8 @@ obj = 0; % Objective function
 g = [];  % constraints vector
 
 % Define the initial and Goal States:
-x0 = [1.0; -3.0;  pi/2; 0.6; 0.0; 0.0; 0.0];    % initial condition.
+% x0 = [1.0; -3.0;  pi/2; 0.6; 0.0; 0.0; 0.0];    % initial condition.
+x0 = [-0.1894; -3.7903;  pi/2; 0.6; 0.0; 0.0; 0.0];    % initial condition.
 xs = [4.0; 1.0;  pi/2; 0.0; 0.0; 0.0; 0.0]; % Reference posture.
 
 
@@ -125,8 +126,13 @@ factor_val = 1.00;
 % obs_y = SX.sym('obs_y', 1);
 % n_circs = size(obs_x,1);
 % 
-obs_loc_x = 2.0;
-obs_loc_y = -1.0;
+% obs_loc_x = 2.0;
+% obs_loc_y = -1.0;
+
+obs_loc_x = -0.5509;
+obs_loc_y = 0.5689;
+
+obs_loc = [obs_loc_x; obs_loc_y];
 
 % CX = SX.sym('CX',[n_circs,1]);
 % CY = SX.sym('CY',[n_circs,1]);
@@ -400,7 +406,7 @@ while(norm((x0(1:2)-xs(1:2)),2) > tol && mpciter < sim_tim / T)
     X0 = [X0(2:end,:); X0(end,:)];
     ss_error = norm((x0(1:2)-xs(1:2)),2)
     mpciter = mpciter + 1;
-end;
+end
 
 main_loop_time = toc(main_loop);
 fprintf('Total elapsed time %f \n',main_loop_time)

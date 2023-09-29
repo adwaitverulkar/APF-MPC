@@ -129,11 +129,12 @@ g = [g; st-P(1:n_states)]; % initial condition constraints
 for k = 1:N
     
     st = X(:,k);  con = U(:, k);
-    U_rect_pot = full(repulsive_pot_lane(X(1,k), X(2,k), rx, ry, d_0_val, nu_val));
+    U_rect_pot = full(repulsive_pot_lane(X(1, k), X(2, k), rx, ry, d_0_val, nu_val));
 
     U_goal_pot = full(U_attractive_pot(X(1,k),X(2,k),xs(1),xs(2),L_val,k_val)) - ...
                  invertedGaussian(X(1,k),X(2,k), gaussian_amp, xs(1), xs(2), sigma_x, sigma_y, C) + ...
                  invertedGaussian(X(1,k),X(2,k), gaussian_amp, P(end-1), P(end), sigma_x, sigma_y, C);
+    
     U_tot = U_rect_pot + U_goal_pot;
 
     if k < N
@@ -142,11 +143,11 @@ for k = 1:N
 
     if k ~=N
         U_obs = full(invertedGaussian(X(1,k), X(2,k), P(end-1), P(end), d_0_val, nu_val,factor_val^k));
-        obj = obj+(st-P(1:n_states))'*Q*(st-P(1:n_states)) ...
+        obj = obj+(st-xs)'*Q*(st-xs) ...
         + con'*R*con + (con_next-con)'*S*(con_next-con) + U_tot + U_obs; % calculate obj   
     else
         U_obs = full(invertedGaussian(X(1,k),X(2,k), P(end-1), P(end),d_0_val,nu_val,factor_val^k));
-        obj = obj+(st-P(1:n_states))'*Q_N*(st-P(1:n_states)) ...
+        obj = obj+(st-xs)'*Q_N*(st-xs) ...
                 + con'*R*con + (con_next-con)'*S*(con_next-con) + U_tot + U_obs; % calculate obj
     end
     st_next = X(:, k+1);
@@ -164,44 +165,31 @@ end
 opti.minimize(obj)
 opti.subject_to(g==0)
 
-opti.subject_to(X(1, :) >= -5)
-opti.subject_to(X(1, :) <= 10)
+opti.subject_to(X(:, 1) == P(1:n_states))
 
-opti.subject_to(X(2, :) >= -5)
-opti.subject_to(X(2, :) <= 10)
+opti.subject_to(-5 <= X(1, :) <= 10)
+opti.subject_to(-5 <= X(2, :) <= 10)
+opti.subject_to(-pi <= X(3, :) <= pi)
+opti.subject_to(-0.5 <= X(4, :) <= 2)
+opti.subject_to(-0.5 <= X(5, :) <= 0.5)
+opti.subject_to(-2*pi <= X(6, :) <= 2*pi)
+opti.subject_to(-2*pi <= X(7, :) <= 2*pi)
 
-opti.subject_to(X(3, :) >= -pi)
-opti.subject_to(X(3, :) <= pi)
-
-opti.subject_to(X(4, :).' >= -0.5)
-opti.subject_to(X(4, :) <= 2)
-
-opti.subject_to(X(5, :) >= -0.5)
-opti.subject_to(X(5, :) <= 0.5)
-
-opti.subject_to(X(6, :) >= -2*pi)
-opti.subject_to(X(6, :) <= 2*pi)
-
-opti.subject_to(X(7, :) >= -2*pi)
-opti.subject_to(X(7, :) <= 2*pi)
-
-opti.subject_to(U(1, :) >= F_min)
-opti.subject_to(U(1, :) <= F_max)
-
-opti.subject_to(U(2, :) >= d_delta_min)
-opti.subject_to(U(2, :) <= d_delta_max)
+opti.subject_to(F_min <= U(1, :) <= F_max)
+opti.subject_to(d_delta_min <= U(2, :) <= d_delta_max)
 
 opts = struct;
 opts.ipopt.max_iter = 100;
 opts.ipopt.print_level =0; %0,3
 opts.print_time = 0;
-opts.ipopt.linear_solver = 'spral';
+opts.ipopt.linear_solver = 'mumps';
 opts.ipopt.acceptable_tol =1e-8;
 opts.ipopt.acceptable_obj_change_tol = 1e-6;
 
 opti.solver('ipopt', opts)
 
 opt_cont = opti.to_function('opt_cont', {P}, {[X(:, 2:N+1); U]});
+
 
 %% Image generation loop
 
@@ -210,8 +198,9 @@ for current_run = 1:MPC_runs
     
     % Define the initial and Goal States:
     x0 = [generate_initial_point();  pi/2; 0.6; 0.0; 0.0; 0.0]; % initial condition.
-
+    x0 = [1.0; -3.0;  pi/2; 0.6; 0.0; 0.0; 0.0]; 
     obs_loc = generate_obs_point();
+    obs_loc = [2; -1];
     obs_loc_x = obs_loc(1);
     obs_loc_y = obs_loc(2);
 
@@ -241,11 +230,13 @@ for current_run = 1:MPC_runs
 
     while(norm((x0(1:2)-xs(1:2)), 2) > tol && mpciter < sim_tim / T)
 
-        generate_APF_image(x0(1:2), goal_pos, obs_loc, sigma_x, sigma_y, gaussian_amp, L_val, k_val, rx, ry, d_0_val, nu_val)
-    
-        image_filename = sprintf('./images/image_%d_%d.png', current_run, mpciter);
-        % Save the figure without the gray area using exportgraphics
-        exportgraphics(gcf, image_filename, 'Resolution', 300, 'ContentType', 'auto');
+        % tic
+        % generate_APF_image(x0(1:2), goal_pos, obs_loc, sigma_x, sigma_y, gaussian_amp, L_val, k_val, rx, ry, d_0_val, nu_val)
+        % 
+        % image_filename = sprintf('./images/image_%d_%d.png', current_run, mpciter);
+        % % Save the figure without the gray area using exportgraphics
+        % exportgraphics(gcf, image_filename, 'Resolution', 300, 'ContentType', 'auto');
+        % 
 
         % args.p(1:2*n_states) = [x0; xs]; % set the values of the parameters vector
         
@@ -270,9 +261,9 @@ for current_run = 1:MPC_runs
         args.x0  = [reshape(X0',n_states*(N+1),1);reshape(u0',n_controls*N,1)];
 
         sol = opt_cont([x0; obs_loc]);
-        u = sol(end-1:end, 1);
+        u = full(sol(end-1:end, :).');
 
-        % xx1(:,1:7,mpciter+1)= reshape(full(sol.x(1:7*(N+1)))',7,N+1)'; % get solution TRAJECTORY
+        xx1(:,1:7,mpciter+1)= [x0, full(sol(1:n_states,:))].';
 
         u_cl= [u_cl ; u(1,:)];
 
@@ -282,14 +273,15 @@ for current_run = 1:MPC_runs
         [t0, x0, u0] = shift(T, t0, x0, u,f);
 
         xx(:, mpciter+2) = x0;
-        X0 = [x0; sol(1:n_states, :)]; % get solution TRAJECTORY
+        X0 = [x0, full(sol(1:n_states,:))]; % get solution TRAJECTORY
         % Shift trajectory to initialize the next step
         X0 = [X0(2:end,:); X0(end,:)];
-        ss_error = norm((x0(1:2)-xs(1:2)),2);
+        ss_error = norm((x0(1:2)-xs(1:2)),2)
         mpciter = mpciter + 1;
     end
     data_filename = sprintf('./data/data_%d.mat', current_run);
     save(data_filename, xx, u_cl);
+    toc
 
 end
 
