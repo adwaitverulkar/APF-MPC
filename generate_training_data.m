@@ -111,20 +111,29 @@ R = diag([1e1;1e1]);
 S = 1e0*diag([1e1;1e3]);
 
 %% Generate MPC Objective Function
+opti = Opti();
 
-obs_loc_sym = SX.sym('obs_loc_sym', 2, 1);
+% Define variables and parameters:
+X = opti.variable(n_states, N+1);
+U = opti.variable(n_controls, N);
+P = opti.parameter(n_states+2);
 
 st  = X(:,1); % initial state
+
 obj = 0; % Objective function
+
 g = [];  % constraints vector
+
 g = [g; st-P(1:n_states)]; % initial condition constraints
+
 for k = 1:N
-    st = X(:,k);  con = U(:,k);
-    U_rect_pot = full(repulsive_pot_lane(X(1,k),X(2,k), rx,ry,d_0_val,nu_val));
+    
+    st = X(:,k);  con = U(:, k);
+    U_rect_pot = full(repulsive_pot_lane(X(1,k), X(2,k), rx, ry, d_0_val, nu_val));
 
     U_goal_pot = full(U_attractive_pot(X(1,k),X(2,k),xs(1),xs(2),L_val,k_val)) - ...
                  invertedGaussian(X(1,k),X(2,k), gaussian_amp, xs(1), xs(2), sigma_x, sigma_y, C) + ...
-                 invertedGaussian(X(1,k),X(2,k), gaussian_amp, obs_loc_sym(1), obs_loc_sym(2), sigma_x, sigma_y, C);
+                 invertedGaussian(X(1,k),X(2,k), gaussian_amp, P(end-1), P(end), sigma_x, sigma_y, C);
     U_tot = U_rect_pot + U_goal_pot;
 
     if k < N
@@ -132,13 +141,13 @@ for k = 1:N
     end
 
     if k ~=N
-        U_obs = full(invertedGaussian(X(1,k),X(2,k), P(2*n_states+n_obs*k-1),P(2*n_states+n_obs*k),d_0_val,nu_val,factor_val^k));
-        obj = obj+(st-P(n_states+1:2*n_states))'*Q*(st-P(n_states+1:2*n_states)) ...
+        U_obs = full(invertedGaussian(X(1,k), X(2,k), P(end-1), P(end), d_0_val, nu_val,factor_val^k));
+        obj = obj+(st-P(1:n_states))'*Q*(st-P(1:n_states)) ...
         + con'*R*con + (con_next-con)'*S*(con_next-con) + U_tot + U_obs; % calculate obj   
     else
-        U_obs = full(invertedGaussian(X(1,k),X(2,k), P(2*n_states+n_obs*k-1),P(2*n_states+n_obs*k),d_0_val,nu_val,factor_val^k));
-        obj = obj+(st-P(n_states+1:2*n_states))'*Q_N*(st-P(n_states+1:2*n_states))...
-        + con'*R*con + (con_next-con)'*S*(con_next-con) + U_tot + U_obs; % calculate obj
+        U_obs = full(invertedGaussian(X(1,k),X(2,k), P(end-1), P(end),d_0_val,nu_val,factor_val^k));
+        obj = obj+(st-P(1:n_states))'*Q_N*(st-P(1:n_states)) ...
+                + con'*R*con + (con_next-con)'*S*(con_next-con) + U_tot + U_obs; % calculate obj
     end
     st_next = X(:, k+1);
 
@@ -152,21 +161,35 @@ for k = 1:N
     g = [g;  st_next-st_next_RK4]; % compute constraints
 end
 
+opti.minimize(obj)
+opti.subject_to(g==0)
 
-%% IPOPT params and Constraints
+opti.subject_to(X(1, :) >= -5)
+opti.subject_to(X(1, :) <= 10)
 
-% make the decision variable one column  vector
-OPT_variables = [reshape(X, n_states*(N+1),1);reshape(U,n_controls*N,1)];
+opti.subject_to(X(2, :) >= -5)
+opti.subject_to(X(2, :) <= 10)
 
-opti = Opti();
+opti.subject_to(X(3, :) >= -pi)
+opti.subject_to(X(3, :) <= pi)
 
-X = opti.variable(7, N+1);
-U = opti.variable(2, N+1);
-obs_loc_1 = opti.variable(2);
+opti.subject_to(X(4, :).' >= -0.5)
+opti.subject_to(X(4, :) <= 2)
 
-opti.minimize()
+opti.subject_to(X(5, :) >= -0.5)
+opti.subject_to(X(5, :) <= 0.5)
 
-nlp_prob = struct('f', obj, 'x', OPT_variables, 'g', g, 'p', P);
+opti.subject_to(X(6, :) >= -2*pi)
+opti.subject_to(X(6, :) <= 2*pi)
+
+opti.subject_to(X(7, :) >= -2*pi)
+opti.subject_to(X(7, :) <= 2*pi)
+
+opti.subject_to(U(1, :) >= F_min)
+opti.subject_to(U(1, :) <= F_max)
+
+opti.subject_to(U(2, :) >= d_delta_min)
+opti.subject_to(U(2, :) <= d_delta_max)
 
 opts = struct;
 opts.ipopt.max_iter = 100;
@@ -176,32 +199,9 @@ opts.ipopt.linear_solver = 'spral';
 opts.ipopt.acceptable_tol =1e-8;
 opts.ipopt.acceptable_obj_change_tol = 1e-6;
 
-solver = nlpsol('solver', 'ipopt', nlp_prob, opts);
+opti.solver('ipopt', opts)
 
-args = struct;
-args.lbg(1:n_states*(N+1)) = 0; % equality constraints
-args.ubg(1:n_states*(N+1)) = 0; % equality constraints
-
-args.lbx(1:n_states:n_states*(N+1),1) = -5; %state x lower bound
-args.ubx(1:n_states:n_states*(N+1),1) = 10; %state x upper bound
-args.lbx(2:n_states:n_states*(N+1),1) = -5; %state y lower bound
-args.ubx(2:n_states:n_states*(N+1),1) = 10; %state y upper bound
-args.lbx(3:n_states:n_states*(N+1),1) = -1*pi; %state psi lower bound
-args.ubx(3:n_states:n_states*(N+1),1) = +1*pi; %state psi upper bound
-args.lbx(4:n_states:n_states*(N+1),1) =  0.6; %state v_x lower bound
-args.ubx(4:n_states:n_states*(N+1),1) = 2; %state v_x upper bound
-args.lbx(5:n_states:n_states*(N+1),1) = -0.2; %state v_y lower bound
-args.ubx(5:n_states:n_states*(N+1),1) = 0.2; %state v_y upper bound
-args.lbx(6:n_states:n_states*(N+1),1) = -2*pi; %state r lower bound
-args.ubx(6:n_states:n_states*(N+1),1) = 2*pi; %state r upper bound
-args.lbx(7:n_states:n_states*(N+1),1) = -2*pi; %state delta lower bound
-args.ubx(7:n_states:n_states*(N+1),1) = 2*pi; %state delta upper bound
-
-
-args.lbx(n_states*(N+1)+1:2:n_states*(N+1)+n_controls*N,1) = F_min; %v lower bound
-args.ubx(n_states*(N+1)+1:2:n_states*(N+1)+n_controls*N,1) = F_max; %v upper bound
-args.lbx(n_states*(N+1)+2:2:n_states*(N+1)+n_controls*N,1) = d_delta_min; %omega lower bound
-args.ubx(n_states*(N+1)+2:2:n_states*(N+1)+n_controls*N,1) = d_delta_max; %omega upper bound
+opt_cont = opti.to_function('opt_cont', {P}, {[X(:, 2:N+1); U]});
 
 %% Image generation loop
 
@@ -247,7 +247,7 @@ for current_run = 1:MPC_runs
         % Save the figure without the gray area using exportgraphics
         exportgraphics(gcf, image_filename, 'Resolution', 300, 'ContentType', 'auto');
 
-        args.p(1:2*n_states) = [x0; xs]; % set the values of the parameters vector
+        % args.p(1:2*n_states) = [x0; xs]; % set the values of the parameters vector
         
         % Update the obstacle location:
         for k = 1:N+1
@@ -269,12 +269,10 @@ for current_run = 1:MPC_runs
         % initial value of the optimization variables
         args.x0  = [reshape(X0',n_states*(N+1),1);reshape(u0',n_controls*N,1)];
 
-        sol = solver('x0', args.x0, 'lbx', args.lbx, 'ubx', args.ubx,...
-            'lbg', args.lbg, 'ubg', args.ubg,'p',args.p);
+        sol = opt_cont([x0; obs_loc]);
+        u = sol(end-1:end, 1);
 
-        u = reshape(full(sol.x(n_states*(N+1)+1:end))',2,N)'; % get controls only from the solution
-
-        xx1(:,1:7,mpciter+1)= reshape(full(sol.x(1:7*(N+1)))',7,N+1)'; % get solution TRAJECTORY
+        % xx1(:,1:7,mpciter+1)= reshape(full(sol.x(1:7*(N+1)))',7,N+1)'; % get solution TRAJECTORY
 
         u_cl= [u_cl ; u(1,:)];
 
@@ -284,7 +282,7 @@ for current_run = 1:MPC_runs
         [t0, x0, u0] = shift(T, t0, x0, u,f);
 
         xx(:, mpciter+2) = x0;
-        X0 = reshape(full(sol.x(1:7*(N+1)))',7,N+1)'; % get solution TRAJECTORY
+        X0 = [x0; sol(1:n_states, :)]; % get solution TRAJECTORY
         % Shift trajectory to initialize the next step
         X0 = [X0(2:end,:); X0(end,:)];
         ss_error = norm((x0(1:2)-xs(1:2)),2);
