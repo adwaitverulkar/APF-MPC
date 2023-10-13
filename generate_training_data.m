@@ -48,7 +48,6 @@ L_val = 1e5; % Goal potential param
 k_val = 0.2; % Goal potential param
 
 %% State Dynamics
-
 rhs = [states(4)*cos(states(3)) - states(5)*sin(states(3))
        states(4)*sin(states(3)) + states(5)*cos(states(3))
        states(6)
@@ -58,16 +57,14 @@ rhs = [states(4)*cos(states(3)) - states(5)*sin(states(3))
        controls(2)];
 
 f = Function('f',{states, controls},{rhs}); % nonlinear mapping function f(x,u) for state dynamics
-
-
 %% Define Optimization Horizons
 
 n_obs = 1;
 
-U = SX.sym('U',n_controls,N); % Decision variables (controls)
-P = SX.sym('P', n_states + n_states + (N+1)*n_obs); % parameters (which include at the initial state of the robot and the reference state)
-
-X = SX.sym('X', n_states, (N+1)); % A vector that represents the states over the optimization problem.
+% U = SX.sym('U',n_controls,N); % Decision variables (controls)
+% P = SX.sym('P', n_states + n_states + (N+1)*n_obs); % parameters (which include at the initial state of the robot and the reference state)
+% 
+% X = SX.sym('X', n_states, (N+1)); % A vector that represents the states over the optimization problem.
 
 %% Static Obstacle Locations
 
@@ -102,8 +99,6 @@ sigma_y = 0.3;
 C = 0;
 
 %% MPC tuning parameters
-
-    
 % Define the Weighting factor
 Q = 1e-5* diag([2e5;2e5;2e5;2e5;2e5;1e-10;1e-10]); 
 Q_N = 1e-4* diag([5e8;5e8;8e6;2e8;2e8;1e-10;1e-10]); % Hint : Q_N (high)
@@ -116,18 +111,16 @@ opti = Opti();
 % Define variables and parameters:
 X = opti.variable(n_states, N+1);
 U = opti.variable(n_controls, N);
-P = opti.parameter(n_states+2);
+P = opti.parameter(n_states+2*n_obs);
 
 st  = X(:,1); % initial state
 
 obj = 0; % Objective function
 
 g = [];  % constraints vector
-
 g = [g; st-P(1:n_states)]; % initial condition constraints
 
-for k = 1:N
-    
+for k = 1:N  
     st = X(:,k);  con = U(:, k);
     U_rect_pot = full(repulsive_pot_lane(X(1, k), X(2, k), rx, ry, d_0_val, nu_val));
 
@@ -142,13 +135,13 @@ for k = 1:N
     end
 
     if k ~=N
-        U_obs = full(invertedGaussian(X(1,k), X(2,k), P(end-1), P(end), d_0_val, nu_val,factor_val^k));
+        % U_obs = full(invertedGaussian(X(1,k), X(2,k), P(end-1), P(end), d_0_val, nu_val,factor_val^k));
         obj = obj+(st-xs)'*Q*(st-xs) ...
-        + con'*R*con + (con_next-con)'*S*(con_next-con) + U_tot + U_obs; % calculate obj   
+        + con'*R*con + (con_next-con)'*S*(con_next-con) + U_tot; % calculate obj   
     else
-        U_obs = full(invertedGaussian(X(1,k),X(2,k), P(end-1), P(end),d_0_val,nu_val,factor_val^k));
+        % U_obs = full(invertedGaussian(X(1,k),X(2,k), P(end-1), P(end),d_0_val,nu_val,factor_val^k));
         obj = obj+(st-xs)'*Q_N*(st-xs) ...
-                + con'*R*con + (con_next-con)'*S*(con_next-con) + U_tot + U_obs; % calculate obj
+                + con'*R*con + (con_next-con)'*S*(con_next-con) + U_tot; % calculate obj
     end
     st_next = X(:, k+1);
 
@@ -182,7 +175,7 @@ opts = struct;
 opts.ipopt.max_iter = 100;
 opts.ipopt.print_level =0; %0,3
 opts.print_time = 0;
-opts.ipopt.linear_solver = 'mumps';
+% opts.ipopt.linear_solver = 'mumps';
 opts.ipopt.acceptable_tol =1e-8;
 opts.ipopt.acceptable_obj_change_tol = 1e-6;
 
@@ -230,13 +223,13 @@ for current_run = 1:MPC_runs
 
     while(norm((x0(1:2)-xs(1:2)), 2) > tol && mpciter < sim_tim / T)
 
-        % tic
+        tic
         % generate_APF_image(x0(1:2), goal_pos, obs_loc, sigma_x, sigma_y, gaussian_amp, L_val, k_val, rx, ry, d_0_val, nu_val)
-        % 
+
         % image_filename = sprintf('./images/image_%d_%d.png', current_run, mpciter);
-        % % Save the figure without the gray area using exportgraphics
+        % Save the figure without the gray area using exportgraphics
         % exportgraphics(gcf, image_filename, 'Resolution', 300, 'ContentType', 'auto');
-        % 
+
 
         % args.p(1:2*n_states) = [x0; xs]; % set the values of the parameters vector
         
@@ -280,7 +273,7 @@ for current_run = 1:MPC_runs
         mpciter = mpciter + 1;
     end
     data_filename = sprintf('./data/data_%d.mat', current_run);
-    save(data_filename, xx, u_cl);
+    save(data_filename, 'xx', 'u_cl');
     toc
 
 end
